@@ -19,9 +19,15 @@ dependencies:
   collection: ^1.18.0
   path: ^1.9.0
   jserializer:
-    path: ../jserializer/
+    git:
+      url: https://github.com/abdalraheemKshinba/jserializer_library.git
+      ref: feat/migrate-to-dart-3.7-analyzer-9
+      path: jserializer/
   merging_builder:
-    path: ../merging_builder/
+    git:
+      url: https://github.com/abdalraheemKshinba/jserializer_library.git
+      ref: feat/migrate-to-dart-3.7-analyzer-9
+      path: merging_builder/
 
 dev_dependencies:
   lints: ^5.0.0
