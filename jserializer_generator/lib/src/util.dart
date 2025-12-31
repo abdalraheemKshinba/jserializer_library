@@ -1,5 +1,3 @@
-// ignore_for_file: deprecated_member_use
-
 import 'package:analyzer/dart/constant/value.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/dart/element/type.dart';
@@ -9,24 +7,23 @@ import 'package:source_gen/source_gen.dart';
 
 extension DartTypeJSerializerX on DartType {
   String getDisplayStringWithoutNullability() {
-    final displayString = getDisplayString(withNullability: true);
-
-    return displayString.replaceAll('?', '');
+    // getDisplayString() returns the type with nullability suffix
+    // We remove the '?' to get the non-nullable version
+    return getDisplayString().replaceAll('?', '');
   }
 }
 
 extension InterfaceElementX on InterfaceElement {
-  PropertyAccessorElement? safeLookupGetter({
+  GetterElement? safeLookupGetter({
     required String name,
     required LibraryElement library,
   }) {
-    return lookUpGetter(name, library);
+    // In analyzer 9.x, use thisType.lookUpGetter with positional arguments
+    return thisType.lookUpGetter(name, library);
   }
 
   String getDisplayStringWithoutNullability() {
-    final displayString = getDisplayString(withNullability: true);
-
-    return displayString.replaceAll('?', '');
+    return name ?? '';
   }
 }
 
@@ -37,7 +34,7 @@ InterfaceType? getMatchingSuperType({
   final superTypes = element.allSupertypes;
 
   for (final superType in superTypes) {
-    if (superType.element.displayName == superTypeName) {
+    if (superType.element.name == superTypeName) {
       return superType;
     }
   }
@@ -48,11 +45,11 @@ InterfaceType? getMatchingSuperType({
 List<CustomAdapterConfig> getParamAdapters({
   required InterfaceElement parentClass,
   required TypeChecker typeChecker,
-  required ParameterElement param,
+  required FormalParameterElement param,
   required TypeResolver typeResolver,
   required String parentAdapterClassName,
 }) {
-  return param.metadata
+  return param.metadata.annotations
       .map((element) => element.computeConstantValue())
       .where(
         (element) =>

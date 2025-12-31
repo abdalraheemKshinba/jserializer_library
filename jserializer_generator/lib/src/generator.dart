@@ -23,15 +23,15 @@ import 'package:jserializer_generator/src/util.dart';
 import 'package:merging_builder/merging_builder.dart';
 import 'package:source_gen/source_gen.dart';
 
-const customAdapterChecker = TypeChecker.fromRuntime(CustomAdapter);
-const mockerChecker = TypeChecker.fromRuntime(JMocker);
-const customModelSerializerChecker = TypeChecker.fromRuntime(CustomJSerializer);
-const customModelMockerChecker = TypeChecker.fromRuntime(CustomJMocker);
-const jUnionChecker = TypeChecker.fromRuntime(JUnion);
-const jUnionValueChecker = TypeChecker.fromRuntime(JUnionValue);
-const jEnumKeyChecker = TypeChecker.fromRuntime(JEnumKey);
-const jEnumIdentifierChecker = TypeChecker.fromRuntime(JEnumIdentifier);
-const jEnumChecker = TypeChecker.fromRuntime(JEnum);
+const customAdapterChecker = TypeChecker.typeNamed(CustomAdapter);
+const mockerChecker = TypeChecker.typeNamed(JMocker);
+const customModelSerializerChecker = TypeChecker.typeNamed(CustomJSerializer);
+const customModelMockerChecker = TypeChecker.typeNamed(CustomJMocker);
+const jUnionChecker = TypeChecker.typeNamed(JUnion);
+const jUnionValueChecker = TypeChecker.typeNamed(JUnionValue);
+const jEnumKeyChecker = TypeChecker.typeNamed(JEnumKey);
+const jEnumIdentifierChecker = TypeChecker.typeNamed(JEnumIdentifier);
+const jEnumChecker = TypeChecker.typeNamed(JEnum);
 
 class NoPrefixAllocator implements Allocator {
   final _imports = <String>{};
@@ -397,16 +397,16 @@ class JSerializerGenerator
 
           if (identifierConfig == null) {
             jsonName = "'${reCase(
-              field.name,
+              field.name ?? '',
               nameCase: globalOptions.fieldNameCase,
             )}'";
           } else {
             jsonName =
-                '${clazz.name}.${field.name}.${identifierConfig.field.name}';
+                '${clazz.name}.${field.name ?? ''}.${identifierConfig.field.name ?? ''}';
           }
 
           final config = EnumKeyConfig(
-            fieldName: field.name,
+            fieldName: field.name ?? '',
             jsonName: jsonName,
           );
 
@@ -446,11 +446,11 @@ class JSerializerGenerator
             continue;
           }
 
-          final subClass = redirect.enclosingElement3;
+          final subClass = redirect.enclosingElement;
           final subClassType = resolver.resolveType(redirect.returnType);
           final jsonKey = jUnionValue.name ??
               reCase(
-                c.name,
+                c.name ?? '',
                 nameCase: globalOptions.fieldNameCase,
               );
 
@@ -475,9 +475,10 @@ class JSerializerGenerator
             jsonKey: jsonKey,
           );
 
-          if (!generatedSubTypes.contains(config.classElement.name)) {
+          final elementName = config.classElement.name ?? '';
+          if (!generatedSubTypes.contains(elementName)) {
             yield config;
-            generatedSubTypes.add(config.classElement.name);
+            generatedSubTypes.add(elementName);
           }
 
           subTypes.add(unionValue);
@@ -642,7 +643,7 @@ class JSerializerGenerator
         .whereType<InterfaceElement>()
         .where((e) =>
             e.allSupertypes.firstWhereOrNull(
-              (element) => TypeChecker.fromRuntime(Serializer)
+              (element) => TypeChecker.typeNamed(Serializer)
                   .isExactly(element.element),
             ) !=
             null)
@@ -744,7 +745,7 @@ class JSerializerGenerator
   ) {
     final interface = elm.allSupertypes.firstWhereOrNull(
       (element) =>
-          TypeChecker.fromRuntime(superType).isExactly(element.element),
+          TypeChecker.typeNamed(superType).isExactly(element.element),
     );
 
     if (interface == null) return null;
@@ -772,7 +773,7 @@ class JSerializerGenerator
     if (isClassCustomSerializer || isClassCustomMocker) return [];
 
     final sortedParams =
-        (customConstructor ?? classElement.unnamedConstructor)!.parameters;
+        (customConstructor ?? classElement.unnamedConstructor)!.formalParameters;
     final className = classElement.name;
     final classType = typeResolver.resolveType(classElement.thisType);
 
@@ -788,43 +789,20 @@ class JSerializerGenerator
 
     return sortedParams.map(
       (param) {
-        final classFieldLib = typeResolver.libs.firstWhereOrNull(
-          (lib) =>
-              classElement.safeLookupGetter(
-                name: param.name,
-                library: lib,
-              ) !=
-              null,
+        // In analyzer 9.x, use the interface type to look up getters
+        final paramName = param.name ?? '';
+        final classField = classElement.safeLookupGetter(
+          name: paramName,
+          library: classElement.library,
         );
 
-        late final classFieldLib2 =
-            classElement.library.definingCompilationUnit.parts
-                .map(
-                  (e) => e.library,
-                )
-                .firstWhereOrNull(
-                  (lib) =>
-                      classElement.safeLookupGetter(
-                        name: param.name,
-                        library: lib,
-                      ) !=
-                      null,
-                );
-
-        late final fieldLib = classFieldLib ?? classFieldLib2;
-
-        final classField = fieldLib == null
-            ? null
-            : classElement.safeLookupGetter(
-                name: param.name,
-                library: fieldLib,
-              );
-
         if (classField == null) {
+          // Try to get getter names for error message
+          final getterNames = classElement.getters.map((e) => e.name).join(',');
           throw Exception(
             'Error reading model ${classElement.name}!\n'
             'Param ${param.name} has no matching field name!\n'
-            'All accessors: ${classElement.accessors.map((e) => e.name).join(',')}\n'
+            'All getters: $getterNames\n'
             '',
           );
         }
@@ -871,8 +849,7 @@ class JSerializerGenerator
                       );
                 },
               )
-              .map((e) => e.element as InterfaceElement)
-              .toList(),
+              .map((e) => e.element as InterfaceElement),
         ];
 
         final isSerializable = customSerializableModelType != null ||
@@ -887,7 +864,7 @@ class JSerializerGenerator
                 (c) {
                   final serializer = c.allSupertypes.firstWhereOrNull(
                     (e) =>
-                        TypeChecker.fromRuntime(Serializer)
+                        TypeChecker.typeNamed(Serializer)
                             .isExactly(e.element) &&
                         e.typeArguments.firstOrNull != null &&
                         e.typeArguments.first.element is InterfaceElement &&
@@ -902,8 +879,8 @@ class JSerializerGenerator
               );
 
         final jKeyObj =
-            TypeChecker.fromRuntime(JKey).firstAnnotationOf(param) ??
-                TypeChecker.fromRuntime(JKey).firstAnnotationOf(classField);
+            TypeChecker.typeNamed(JKey).firstAnnotationOf(param) ??
+                TypeChecker.typeNamed(JKey).firstAnnotationOf(classField);
 
         final jKey = jKeyObj == null ? null : JKeyConfig.fromDartObj(jKeyObj);
 
@@ -961,7 +938,7 @@ class JSerializerGenerator
         final jKeyName = jKey?.name;
         final jsonName = jKeyName ??
             reCase(
-              param.name,
+              paramName,
               nameCase: config.fieldNameCase,
             );
 
@@ -1017,7 +994,7 @@ class JSerializerGenerator
           keyConfig: jKey ?? JKeyConfig(),
           paramType: typeResolver.resolveType(param.type),
           jsonKey: jsonName,
-          fieldName: param.name,
+          fieldName: paramName,
           isNamed: param.isNamed,
           fieldType: typeResolver.resolveType(classField.type.returnType),
         );
@@ -1063,7 +1040,7 @@ class CustomAdapterConfig {
   final ResolvedType type;
   final ResolvedType jsonType;
   final ResolvedType modelType;
-  final ParameterElement param;
+  final FormalParameterElement param;
 
   String get adapterFieldName => '_\$${param.name}_\$${type.fullName}';
 }

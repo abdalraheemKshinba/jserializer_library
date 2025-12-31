@@ -126,8 +126,8 @@ abstract class SyntheticBuilder<S extends SyntheticInput> implements Builder {
 
       // Read library.
       final library = await buildStep.resolver.libraryFor(assetId);
-      // Get dependencies
-      for (final import in library.definingCompilationUnit.libraryImports) {
+      // Get dependencies - In analyzer 9.x, access imports through firstFragment
+      for (final import in library.firstFragment.libraryImports) {
         final uri = Uri.parse(import.uri.toString());
         // Skip if uri scheme is not "package" or "asset".
         if (uri.scheme == 'package' ||
